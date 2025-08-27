@@ -1,8 +1,342 @@
+
 <!doctype html>
-<html>
-<head><meta charset="utf-8"><title>Dividend Tracker</title></head>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dividend Tracker</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root { --bg:#f7f9fc; --card:#ffffff; --ink:#0b2740; --muted:#64748b; --accent:#1363c6; }
+  body { margin:0; font-family: system-ui, -apple-system, Roboto, 'Segoe UI', Arial; background:var(--bg); color:var(--ink); }
+  header { padding:16px; background:var(--card); position:sticky; top:0; z-index:2; box-shadow:0 1px 8px rgba(0,0,0,.05); }
+  h1 { margin:0; font-size:20px; }
+  .container { padding:16px; }
+  .grid { display:grid; gap:12px; }
+  .card { background:var(--card); border-radius:16px; padding:16px; box-shadow:0 2px 12px rgba(0,0,0,.06); }
+  .kpis { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .kpi { background:#0b3a5b; color:#fff; border-radius:16px; padding:12px; }
+  .kpi small { display:block; opacity:.8; }
+  label { font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
+  input, select, button, textarea { font:inherit; }
+  input, select { width:100%; padding:10px; border:1px solid #d3d9e3; border-radius:12px; background:#fff; }
+  button { background:var(--accent); color:#fff; border:none; padding:10px 14px; border-radius:12px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { padding:8px; border-bottom:1px solid #eef2f8; text-align:left; font-size:14px; }
+  .tabs { display:flex; gap:8px; margin-bottom:12px; }
+  .tab { flex:1; background:#e6eef9; color:#0b2740; padding:10px; text-align:center; border-radius:12px; cursor:pointer; }
+  .tab.active { background:#0b3a5b; color:#fff; }
+  .row { display:flex; gap:8px; }
+  .row > * { flex:1; }
+  .pill { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; background:#eef2f8; color:#0b2740; }
+  .pill.overridden { background:#fff3cd; color:#8a6d3b; }
+  .muted { color:var(--muted); }
+  footer { height:56px; }
+</style>
+</head>
 <body>
-<h1>Dividend Tracker App</h1>
-<p>If you can see this page, the PWA files are working.</p>
+<header><h1>Dividend Tracker</h1></header>
+<div class="container">
+  <div class="tabs">
+    <div class="tab active" data-tab="dashboard">Dashboard</div>
+    <div class="tab" data-tab="holdings">Holdings</div>
+    <div class="tab" data-tab="dividends">Dividends</div>
+    <div class="tab" data-tab="calendar">Calendar</div>
+    <div class="tab" data-tab="settings">Settings</div>
+  </div>
+
+  <section id="dashboard" class="grid">
+    <div class="card">
+      <h3>House Money</h3>
+      <div class="kpis">
+        <div class="kpi"><small>Invested</small><div id="k_invested">$0.00</div></div>
+        <div class="kpi"><small>Dividends Received</small><div id="k_received">$0.00</div></div>
+        <div class="kpi"><small>Remaining to Break Even</small><div id="k_remaining">$0.00</div></div>
+        <div class="kpi"><small>% Recovered</small><div id="k_pct">0.0%</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Weekly Dividends</h3>
+      <canvas id="weeklyChart" height="220"></canvas>
+    </div>
+    <div class="card">
+      <h3>Allocation</h3>
+      <canvas id="pieChart" height="220"></canvas>
+    </div>
+  </section>
+
+  <section id="holdings" class="grid" style="display:none">
+    <div class="card">
+      <h3>Add Holding</h3>
+      <div class="row">
+        <div><label>Ticker</label><input id="h_ticker" placeholder="SMCY"></div>
+        <div><label>Shares</label><input id="h_shares" type="number" placeholder="1200"></div>
+      </div>
+      <div class="row">
+        <div><label>Avg Cost</label><input id="h_avg" type="number" step="0.01" placeholder="20.55"></div>
+        <div><label>Last Price (auto or manual)</label><input id="h_price" type="number" step="0.01" placeholder="20.75"></div>
+      </div>
+      <button id="h_add">Add</button>
+    </div>
+    <div class="card">
+      <h3>Holdings</h3>
+      <table id="hold_table">
+        <thead><tr><th>Ticker</th><th>Shares</th><th>Avg</th><th>Last</th><th>Value</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="dividends" class="grid" style="display:none">
+    <div class="card">
+      <h3>Add Dividend / Override</h3>
+      <div class="row">
+        <div><label>Ticker</label><input id="d_ticker" placeholder="SMCY"></div>
+        <div><label>Per Share</label><input id="d_amt" type="number" step="0.0001" placeholder="0.36"></div>
+      </div>
+      <div class="row">
+        <div><label>Ex-Date (YYYY-MM-DD)</label><input id="d_ex" placeholder="2025-08-19"></div>
+        <div><label>Pay-Date (YYYY-MM-DD)</label><input id="d_pay" placeholder="2025-08-26"></div>
+      </div>
+      <button id="d_add">Save</button>
+    </div>
+    <div class="card">
+      <h3>Dividends</h3>
+      <table id="div_table">
+        <thead><tr><th>Ticker</th><th>Amount</th><th>Ex</th><th>Pay</th><th>Tag</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="calendar" class="grid" style="display:none">
+    <div class="card">
+      <h3>Upcoming</h3>
+      <div id="cal_list" class="grid"></div>
+      <button id="ics_btn">Add next 30 days to Google Calendar (.ics)</button>
+      <p class="muted">Tap the button to download an .ics file; open it with Google Calendar to add all Ex/Pay events and receive notifications.</p>
+    </div>
+  </section>
+
+  <section id="settings" class="grid" style="display:none">
+    <div class="card">
+      <h3>Currency</h3>
+      <select id="currency">
+        <option>USD</option><option>EUR</option><option>GBP</option><option>JPY</option><option>CAD</option><option>AUD</option>
+      </select>
+    </div>
+    <div class="card">
+      <h3>Backup / Restore</h3>
+      <button id="backup_btn">Backup to JSON</button>
+      <input id="restore_file" type="file" accept="application/json">
+    </div>
+  </section>
+
+  <footer></footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+const $$ = sel => document.querySelector(sel);
+const $$$ = sel => document.querySelectorAll(sel);
+const storeKey = 'dt_pwa_store_v1';
+let store = JSON.parse(localStorage.getItem(storeKey) || '{"holdings":[],"dividends":[],"currency":"USD"}');
+
+function save() { localStorage.setItem(storeKey, JSON.stringify(store)); renderAll(); }
+function money(v){ return new Intl.NumberFormat(undefined,{style:'currency',currency:store.currency||'USD'}).format(v||0); }
+
+// Tabs
+$$$('.tab').forEach(t => t.onclick = () => {
+  $$$('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  ['dashboard','holdings','dividends','calendar','settings'].forEach(id=> $$('#'+id).style.display = (t.dataset.tab===id?'grid':'none'));
+});
+
+// Add Holding
+$$('#h_add').onclick = () => {
+  const ticker = $$('#h_ticker').value.trim().toUpperCase();
+  const shares = parseFloat($$('#h_shares').value) || 0;
+  const avg = parseFloat($$('#h_avg').value) || 0;
+  const price = parseFloat($$('#h_price').value) || 0;
+  if(!ticker || !shares) return;
+  store.holdings.push({ id: crypto.randomUUID?.() || String(Math.random()), ticker, shares, avgCost: avg, lastPrice: price });
+  $$('#h_ticker').value=''; $$('#h_shares').value=''; $$('#h_avg').value=''; $$('#h_price').value='';
+  save();
+};
+
+function removeHolding(id){
+  store.holdings = store.holdings.filter(h=>h.id!==id);
+  save();
+}
+
+// Add Dividend / Override
+$$('#d_add').onclick = () => {
+  const t = $$('#d_ticker').value.trim().toUpperCase();
+  const a = parseFloat($$('#d_amt').value)||0;
+  const ex = $$('#d_ex').value.trim();
+  const pay = $$('#d_pay').value.trim();
+  if(!t || (!a && !ex && !pay)) return;
+  store.dividends.push({ id: crypto.randomUUID?.() || String(Math.random()), ticker:t, perShare:a||0, exDate:ex||undefined, payDate:pay||undefined, source:'api' });
+  $$('#d_ticker').value=''; $$('#d_amt').value=''; $$('#d_ex').value=''; $$('#d_pay').value='';
+  save();
+};
+
+function removeDiv(id){
+  store.dividends = store.dividends.filter(d=>d.id!==id);
+  save();
+}
+
+// Currency
+$$('#currency').value = store.currency || 'USD';
+$$('#currency').onchange = e => { store.currency = e.target.value; save(); };
+
+// Backup/Restore
+$$('#backup_btn').onclick = () => {
+  const blob = new Blob([JSON.stringify(store,null,2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'dividend-tracker-backup.json'; a.click();
+};
+$$('#restore_file').onchange = async (e) => {
+  const file = e.target.files?.[0]; if(!file) return;
+  const text = await file.text();
+  try { store = JSON.parse(text); save(); } catch { alert('Invalid file'); }
+};
+
+// Calculations
+function computeHouseMoney(){
+  const invested = store.holdings.reduce((s,h)=> s + h.shares * h.avgCost, 0);
+  const received = store.dividends.reduce((s,d)=> {
+    const sh = store.holdings.find(h=>h.ticker===d.ticker)?.shares || 0;
+    return s + (d.perShare || 0) * sh;
+  }, 0);
+  const remaining = Math.max(0, invested - received);
+  const pct = invested>0 ? (received/invested)*100 : 0;
+  return { invested, received, remaining, pct };
+}
+
+function aggregateWeekly(){
+  const map = {};
+  (store.dividends||[]).forEach(d=>{
+    const date = d.payDate || d.exDate; if(!date) return;
+    const dt = new Date(date);
+    const wk = new Date(dt); const day = wk.getDay(); const diff = (day+6)%7; wk.setDate(wk.getDate()-diff);
+    const key = wk.toISOString().slice(0,10);
+    const sh = store.holdings.find(h=>h.ticker===d.ticker)?.shares || 0;
+    const amt = (d.perShare || 0) * sh;
+    map[key] = (map[key]||0) + amt;
+  });
+  return Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0])).map(([x,y])=>({x,y}));
+}
+
+function allocation(){
+  const tot = store.holdings.reduce((s,h)=> s + (h.lastPrice||0)*h.shares, 0);
+  return store.holdings.map(h=>({ label:h.ticker, value: ((h.lastPrice||0)*h.shares) / (tot||1) }));
+}
+
+// ICS export for next 30 days
+function buildICS(){
+  const now = new Date();
+  const in30 = new Date(); in30.setDate(in30.getDate()+30);
+  function format(dt){ return dt.toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z'; }
+  const events = (store.dividends||[]).flatMap(d=>{
+    const rows = [];
+    const add = (date, kind) => {
+      if(!date) return;
+      const dt = new Date(date);
+      if(dt < now || dt > in30) return;
+      const uid = (crypto.randomUUID?.() || (Math.random()+''+Date.now())) + '@divtracker';
+      rows.push([
+        'BEGIN:VEVENT',
+        `UID:${uid}`,
+        `DTSTAMP:${format(new Date())}`,
+        `DTSTART:${format(dt)}`,
+        `SUMMARY:${d.ticker} ${kind}: ${d.perShare?('$'+d.perShare.toFixed(4)):'(amount TBD)'}`,
+        'END:VEVENT'
+      ].join('\r\n'));
+    };
+    add(d.exDate,'Ex-Dividend');
+    add(d.payDate,'Payment');
+    return rows;
+  });
+  const ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Dividend Tracker//EN', ...events, 'END:VCALENDAR'].join('\r\n');
+  return ics;
+}
+
+let weeklyChart, pieChart;
+function renderAll(){
+  // KPIs
+  const hm = computeHouseMoney();
+  $$('#k_invested').textContent = money(hm.invested);
+  $$('#k_received').textContent = money(hm.received);
+  $$('#k_remaining').textContent = money(hm.remaining);
+  $$('#k_pct').textContent = hm.pct.toFixed(1) + '%';
+
+  // Holdings table
+  const tb = $$('#hold_table tbody'); tb.innerHTML = '';
+  store.holdings.forEach(h=>{
+    const tr = document.createElement('tr');
+    const val = (h.lastPrice||0)*h.shares;
+    tr.innerHTML = `<td>${h.ticker}</td><td>${h.shares}</td><td>${money(h.avgCost)}</td><td>${money(h.lastPrice||0)}</td><td>${money(val)}</td><td><button data-id="${h.id}">Delete</button></td>`;
+    tb.appendChild(tr);
+    tr.querySelector('button').onclick = ()=> removeHolding(h.id);
+  });
+
+  // Dividends table
+  const dtb = $$('#div_table tbody'); dtb.innerHTML = '';
+  store.dividends.forEach(d=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${d.ticker}</td><td>${d.perShare?('$'+d.perShare.toFixed(4)):'-'}</td><td>${d.exDate||'-'}</td><td>${d.payDate||'-'}</td><td><span class="pill">${d.source||'manual'}</span></td><td><button data-id="${d.id}">Delete</button></td>`;
+    dtb.appendChild(tr);
+    tr.querySelector('button').onclick = ()=> removeDiv(d.id);
+  });
+
+  // Weekly chart
+  const w = aggregateWeekly();
+  const ctx1 = $$('#weeklyChart').getContext('2d');
+  if (weeklyChart) weeklyChart.destroy();
+  weeklyChart = new Chart(ctx1, {
+    type: 'bar',
+    data: { labels: w.map(o=>o.x), datasets: [{ label:'Weekly', data: w.map(o=>o.y) }] },
+    options: { responsive:true, maintainAspectRatio:false }
+  });
+
+  // Allocation pie
+  const alloc = allocation();
+  const ctx2 = $$('#pieChart').getContext('2d');
+  if (pieChart) pieChart.destroy();
+  pieChart = new Chart(ctx2, {
+    type: 'pie',
+    data: { labels: alloc.map(a=>a.label), datasets: [{ data: alloc.map(a=>a.value) }] },
+    options: { responsive:true, maintainAspectRatio:false }
+  });
+
+  // Calendar list (next 30 days)
+  const list = $$('#cal_list'); list.innerHTML='';
+  const now = new Date(), in30 = new Date(); in30.setDate(in30.getDate()+30);
+  (store.dividends||[]).forEach(d=>{
+    [['Ex', d.exDate], ['Pay', d.payDate]].forEach(([k,dt])=>{
+      if(!dt) return;
+      const when = new Date(dt);
+      if (when >= now && when <= in30) {
+        const div = document.createElement('div');
+        div.className = 'row'; div.style.alignItems='center';
+        div.innerHTML = `<div style="flex:2">${new Date(dt).toDateString()}</div><div style="flex:1">${d.ticker}</div><div style="flex:2">${k}: ${d.perShare?('$'+(+d.perShare).toFixed(4)):'(TBD)'}</div>`;
+        list.appendChild(div);
+      }
+    });
+  });
+}
+
+$$('#ics_btn').onclick = () => {
+  const blob = new Blob([buildICS()], { type: 'text/calendar' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'dividends_next_30_days.ics'; a.click();
+};
+
+// Boot
+renderAll();
+</script>
 </body>
 </html>
