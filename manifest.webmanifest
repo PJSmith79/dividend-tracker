@@ -1,0 +1,9 @@
+{
+  "name": "Dividend Tracker",
+  "short_name": "DivTracker",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0b3a5b",
+  "theme_color": "#0b3a5b",
+  "icons": []
+}
